@@ -6,6 +6,6 @@ import { ai } from "tacit";
 
 const email = "Hi, I was charged twice for last month's subscription. Please refund.";
 
-const category: "billing" | "technical" | "account" = await ai({ input: email });
+const category: "billing" | "technical" | "account" = await ai(email);
 
 console.log(`category: ${category}`);

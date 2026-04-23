@@ -24,7 +24,7 @@ import { ai } from "tacit";
 
 const email = "Hi, I was charged twice for last month's subscription. Please refund.";
 
-const category: "billing" | "technical" | "account" = await ai({ input: email });
+const category: "billing" | "technical" | "account" = await ai(email);
 console.log(category);
 ```
 
@@ -58,42 +58,50 @@ should be. `tacit` does not override them.
 ## API
 
 ```typescript
-function ai<T = unknown>(opts?: {
-  input?: unknown;   // any JSON-serializable value passed to the LLM as runtime context
-  hint?: string;     // optional extra guidance for ambiguous cases
-}): Promise<T>;
+function ai<T = unknown>(...args: unknown[]): Promise<T>;
+```
+
+Any number of positional args. All of them get JSON-serialized and sent to the LLM
+along with the source code; the LLM reads the call site to know what each one means.
+
+```typescript
+const greeting: string                                   = await ai();
+const verdict:  "yes" | "no"                             = await ai(question);
+const fullName: string                                   = await ai(first, last);
+const result:   { ok: boolean; reason: string }          = await ai({ input: data });
 ```
 
 - The expected return type comes from your TypeScript annotation.
 - The runtime returns `unknown`; cast via the annotation (no runtime schema check yet).
+- Need to give the LLM a hint? Just pass it as another arg, or write a comment near
+  the call site — the LLM will read both.
 
 ## Constraints
 
 - **One `ai()` per line** — disambiguation is by line number alone.
-- **`input` must be JSON-serializable** — functions, Maps, and circular refs throw.
+- **All args must be JSON-serializable** — functions, Maps, and circular refs throw.
 - **Imported types are not resolved** — keep types inline, or trust the LLM's
   knowledge of common libraries (Zod, Date, etc.).
 - **Source file must be readable** — does not work from REPL, eval, or compiled
   binaries that strip source.
 
-## When to use `hint`
+## Tip: prefer semantic types over magic numbers
 
-When the type alone is ambiguous:
+When the type alone is ambiguous, be more specific:
 
 ```typescript
 // LLM doesn't know which direction is "more urgent"
-const urgency: 1 | 2 | 3 | 4 | 5 = await ai({
-  input: email,
-  hint: "5 = production down, 1 = trivial cosmetic",
-});
+const urgency: 1 | 2 | 3 | 4 | 5 = await ai(email);
+
+// Much better — the type itself encodes meaning
+const urgency: "trivial" | "minor" | "moderate" | "high" | "critical" = await ai(email);
 ```
 
-Better: use a more semantic type:
+If you really need to keep numeric scales, pass a hint as another arg or a comment:
 
 ```typescript
-const urgency: "trivial" | "minor" | "moderate" | "high" | "critical" = await ai({
-  input: email,
-});
+// urgency 5 = production down, 1 = cosmetic
+const urgency: 1 | 2 | 3 | 4 | 5 = await ai(email);
 ```
 
 ## Configuration

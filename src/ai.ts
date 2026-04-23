@@ -7,11 +7,6 @@ interface Callsite {
   column: number;
 }
 
-interface AiOpts {
-  input?: unknown;
-  hint?: string;
-}
-
 function getCallsite(): Callsite {
   const stack = new Error().stack ?? "";
   const lines = stack.split("\n");
@@ -35,13 +30,13 @@ function getCallsite(): Callsite {
   throw new Error("tacit: could not determine call site from stack trace");
 }
 
-function serializeInput(input: unknown): string {
+function serializeArg(arg: unknown, index: number): string {
   try {
-    return JSON.stringify(input, null, 2);
+    return JSON.stringify(arg, null, 2);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new TypeError(
-      `tacit: ai() input must be JSON-serializable. Got error: ${msg}. ` +
+      `tacit: ai() arg #${index + 1} must be JSON-serializable. Got error: ${msg}. ` +
         `If you need to pass non-data (functions / Maps / circular refs), ` +
         `convert to a plain object first.`,
     );
@@ -59,12 +54,19 @@ function numberSource(source: string): string {
 function buildPrompt(args: {
   source: string;
   callLine: number;
-  inputJson: string | null;
-  hint?: string;
+  argsJson: string[];
 }): string {
-  const { source, callLine, inputJson, hint } = args;
+  const { source, callLine, argsJson } = args;
   const sourceLine = source.split("\n")[callLine - 1] ?? "";
   const numbered = numberSource(source);
+
+  const argsBlock =
+    argsJson.length === 0
+      ? "ARGS: (none — the ai() call had no arguments)"
+      : "ARGS (positional, in call order, JSON-serialized):\n" +
+        argsJson
+          .map((j, i) => `  [#${i + 1}]\n\`\`\`json\n${j}\n\`\`\``)
+          .join("\n");
 
   return [
     "You are being invoked by `tacit`, a TypeScript runtime that fills typed",
@@ -74,12 +76,15 @@ function buildPrompt(args: {
     "infer what value should be produced at that point, and output JUST a JSON",
     "value matching the expected type from the type annotation.",
     "",
-    "The call site looks like:",
-    "    const x: SomeType = await ai({ input: ... });",
+    "The call site can take any number of positional args:",
+    "    const x: SomeType = await ai();              // pure code-driven",
+    "    const x: SomeType = await ai(data);          // single arg",
+    "    const x: SomeType = await ai(a, b, c);       // multiple args",
+    "    const x: SomeType = await ai({ input: d });  // explicit object form",
     "",
     "You must infer:",
     "  - WHAT to compute — from the variable name, the type annotation, the",
-    "    surrounding code, and the agent's overall purpose",
+    "    arguments, the surrounding code, and the agent's overall purpose",
     "  - WHAT SHAPE to return — strictly from the type annotation",
     "",
     "Output exactly one JSON value. No markdown fences. No commentary. No",
@@ -95,11 +100,8 @@ function buildPrompt(args: {
     "The exact source line is:",
     `    ${sourceLine.trim()}`,
     "",
-    inputJson !== null
-      ? `INPUT (the value of opts.input, JSON-serialized):\n\`\`\`json\n${inputJson}\n\`\`\``
-      : "INPUT: (none)",
+    argsBlock,
     "",
-    hint ? `HINT (extra guidance from the agent author):\n${hint}\n` : "",
     "Now output the JSON value (and only the JSON value):",
   ]
     .filter((s) => s !== "")
@@ -152,16 +154,15 @@ async function callClaude(prompt: string): Promise<string> {
   return stdout.trim();
 }
 
-export async function ai<T = unknown>(opts: AiOpts = {}): Promise<T> {
+export async function ai<T = unknown>(...args: unknown[]): Promise<T> {
   const callsite = getCallsite();
   const source = await readFile(callsite.file, "utf8");
-  const inputJson = opts.input !== undefined ? serializeInput(opts.input) : null;
+  const argsJson = args.map(serializeArg);
 
   const prompt = buildPrompt({
     source,
     callLine: callsite.line,
-    inputJson,
-    hint: opts.hint,
+    argsJson,
   });
 
   if (process.env.TACIT_DEBUG) {
