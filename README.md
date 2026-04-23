@@ -85,24 +85,24 @@ const result:   { ok: boolean; reason: string }          = await ai({ input: dat
 - **Source file must be readable** — does not work from REPL, eval, or compiled
   binaries that strip source.
 
-## Tip: prefer semantic types over magic numbers
+## Tip: comments are prompts
 
-When the type alone is ambiguous, be more specific:
+The LLM sees the **entire source file**, comments included. So when the type alone
+is ambiguous, just write a comment near the call site:
 
 ```typescript
-// LLM doesn't know which direction is "more urgent"
+// urgency scale: 5 = production outage / critical, 1 = trivial cosmetic
 const urgency: 1 | 2 | 3 | 4 | 5 = await ai(email);
+```
 
-// Much better — the type itself encodes meaning
+Or even better, use a semantic type so you don't need any explanation:
+
+```typescript
 const urgency: "trivial" | "minor" | "moderate" | "high" | "critical" = await ai(email);
 ```
 
-If you really need to keep numeric scales, pass a hint as another arg or a comment:
-
-```typescript
-// urgency 5 = production down, 1 = cosmetic
-const urgency: 1 | 2 | 3 | 4 | 5 = await ai(email);
-```
+You don't need a separate "hint" mechanism — the source code IS the prompt, and
+comments are part of the source.
 
 ## Configuration
 
