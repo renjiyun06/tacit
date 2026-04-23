@@ -45,11 +45,15 @@ Each `await ai({ input })` call:
 
 1. Captures `file:line` from `new Error().stack`
 2. Reads the full source file
-3. Spawns `claude -p` with a prompt containing: the source (with line numbers), the
-   active line, the JSON-serialized `input` value, and an instruction to output JSON
+3. Spawns `claude -p "<prompt>"` with `cwd = $HOME` (so the sub-Claude inherits
+   only your user-level settings, never anything project-specific from wherever
+   you happened to invoke `tacit`)
 4. Parses the response with `JSON.parse` (with a simple fence-stripping fallback)
 
 No API key needed — `tacit` uses your existing `claude` CLI auth.
+
+The model, tools, and skills are whatever your user-level Claude config says they
+should be. `tacit` does not override them.
 
 ## API
 
@@ -94,9 +98,7 @@ const urgency: "trivial" | "minor" | "moderate" | "high" | "critical" = await ai
 
 ## Configuration
 
-Environment variables:
-
-- `TACIT_MODEL` — Claude model to use (default: `claude-haiku-4-5`)
+None at runtime. The sub-Claude uses your existing user-level config (`~/.claude/`).
 
 ## Status
 

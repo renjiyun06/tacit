@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 
 interface Callsite {
   file: string;
@@ -10,8 +11,6 @@ interface AiOpts {
   input?: unknown;
   hint?: string;
 }
-
-const DEFAULT_MODEL = "claude-haiku-4-5";
 
 function getCallsite(): Callsite {
   const stack = new Error().stack ?? "";
@@ -129,23 +128,15 @@ function parseOutput(text: string): unknown {
   }
 }
 
-async function callClaude(prompt: string, model: string): Promise<string> {
-  const proc = Bun.spawn(
-    [
-      "claude",
-      "-p",
-      "--model",
-      model,
-      "--tools",
-      "",
-      "--disable-slash-commands",
-      prompt,
-    ],
-    {
-      stdout: "pipe",
-      stderr: "pipe",
-    },
-  );
+async function callClaude(prompt: string): Promise<string> {
+  // Run claude from $HOME so it inherits only user-level settings,
+  // not whatever project the user happens to be in. Keeps the sub-Claude
+  // a neutral generic agent regardless of caller's cwd.
+  const proc = Bun.spawn(["claude", "-p", prompt], {
+    cwd: homedir(),
+    stdout: "pipe",
+    stderr: "pipe",
+  });
 
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -166,7 +157,6 @@ export async function ai<T = unknown>(opts: AiOpts = {}): Promise<T> {
   const source = await readFile(callsite.file, "utf8");
   const inputJson = opts.input !== undefined ? serializeInput(opts.input) : null;
 
-  const model = process.env.TACIT_MODEL ?? DEFAULT_MODEL;
   const prompt = buildPrompt({
     source,
     callLine: callsite.line,
@@ -177,7 +167,7 @@ export async function ai<T = unknown>(opts: AiOpts = {}): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const text = await callClaude(prompt, model);
+      const text = await callClaude(prompt);
       return parseOutput(text) as T;
     } catch (e) {
       lastError = e;
