@@ -164,6 +164,14 @@ export async function ai<T = unknown>(opts: AiOpts = {}): Promise<T> {
     hint: opts.hint,
   });
 
+  if (process.env.TACIT_DEBUG) {
+    process.stderr.write(
+      `\n=== tacit DEBUG ===\n` +
+        `callsite: ${callsite.file}:${callsite.line}:${callsite.column}\n` +
+        `--- prompt ---\n${prompt}\n--- end prompt ---\n\n`,
+    );
+  }
+
   let lastError: unknown;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
