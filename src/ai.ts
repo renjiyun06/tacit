@@ -134,11 +134,19 @@ async function callClaude(prompt: string): Promise<string> {
   // Run claude from $HOME so it inherits only user-level settings,
   // not whatever project the user happens to be in. Keeps the sub-Claude
   // a neutral generic agent regardless of caller's cwd.
-  const proc = Bun.spawn(["claude", "-p", prompt], {
-    cwd: homedir(),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  //
+  // --dangerously-skip-permissions: in print mode there is no human to
+  // grant permissions, so the sub-Claude either gets full tool access
+  // or effectively no tools. We pick full access so script authors can
+  // use comments to direct it to Read/Grep/Bash whatever it needs.
+  const proc = Bun.spawn(
+    ["claude", "-p", "--dangerously-skip-permissions", prompt],
+    {
+      cwd: homedir(),
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
 
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
