@@ -7,7 +7,7 @@ const HELP = `\
 tacit — TypeScript runtime for tiny LLM-driven agent scripts.
 
 Usage:
-  tacit run <script.ts> [args...]    Run an agent script
+  tacit run <script.ts> [args...]     Run an agent script
   tacit --help                        Show this help
   tacit --version                     Show version
 
