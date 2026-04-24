@@ -1,0 +1,7 @@
+{
+  "name": "tacit",
+  "description": "TypeScript runtime for tiny LLM-driven agent scripts. Ships the tacit-box skill, which teaches Claude how to discover and write tacit scripts.",
+  "author": {
+    "name": "Ren"
+  }
+}

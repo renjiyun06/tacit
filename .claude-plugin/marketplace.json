@@ -1,0 +1,13 @@
+{
+  "name": "tacit-local",
+  "owner": {
+    "name": "Ren"
+  },
+  "plugins": [
+    {
+      "name": "tacit",
+      "source": ".",
+      "description": "Tiny LLM-driven agent scripts, managed via tacit-box"
+    }
+  ]
+}
