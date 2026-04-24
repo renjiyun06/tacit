@@ -6,7 +6,8 @@
   "plugins": [
     {
       "name": "tacit",
-      "source": ".",
+      "source": "./",
+      "version": "0.0.1",
       "description": "Tiny LLM-driven agent scripts, managed via tacit-box"
     }
   ]
