@@ -2,6 +2,7 @@
   "name": "tacit",
   "version": "0.0.1",
   "description": "TypeScript runtime that fills typed holes in agent scripts using claude -p.",
+  "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
