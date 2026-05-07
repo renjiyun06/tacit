@@ -1,1 +1,1 @@
-export { ai } from "./ai.ts";
+export { agent } from "./agent.ts";

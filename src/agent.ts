@@ -18,7 +18,7 @@ function getCallsite(): Callsite {
     if (!m) continue;
 
     const file = m[1];
-    if (file.includes("/tacit/src/") || file.endsWith("/ai.ts")) continue;
+    if (file.includes("/tacit/src/") || file.endsWith("/agent.ts")) continue;
     if (file.startsWith("node:") || file.startsWith("bun:")) continue;
 
     return {
@@ -36,7 +36,7 @@ function serializeArg(arg: unknown, index: number): string {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new TypeError(
-      `tacit: ai() arg #${index + 1} must be JSON-serializable. Got error: ${msg}. ` +
+      `tacit: agent.<verb>() arg #${index + 1} must be JSON-serializable. Got error: ${msg}. ` +
         `If you need to pass non-data (functions / Maps / circular refs), ` +
         `convert to a plain object first.`,
     );
@@ -62,7 +62,7 @@ function buildPrompt(args: {
 
   const argsBlock =
     argsJson.length === 0
-      ? "ARGS: (none — the ai() call had no arguments)"
+      ? "ARGS: (none — the agent.<verb>() call had no arguments)"
       : "ARGS (positional, in call order, JSON-serialized):\n" +
         argsJson
           .map((j, i) => `  [#${i + 1}]\n\`\`\`json\n${j}\n\`\`\``)
@@ -76,15 +76,15 @@ function buildPrompt(args: {
     "infer what value should be produced at that point, and output JUST a JSON",
     "value matching the expected type from the type annotation.",
     "",
-    "The call site can take any number of positional args:",
-    "    const x: SomeType = await ai();              // pure code-driven",
-    "    const x: SomeType = await ai(data);          // single arg",
-    "    const x: SomeType = await ai(a, b, c);       // multiple args",
-    "    const x: SomeType = await ai({ input: d });  // explicit object form",
+    "The call site uses the form `await agent.<verb>(...)`. The verb is a",
+    "semantic signal (e.g. classify / extract / score / summarize / parse).",
+    "Together with the variable name, type annotation, arguments, surrounding",
+    "code, and nearby comments, the verb describes what to compute — there is",
+    "no separate prompt string.",
     "",
     "You must infer:",
-    "  - WHAT to compute — from the variable name, the type annotation, the",
-    "    arguments, the surrounding code, and the agent's overall purpose",
+    "  - WHAT to compute — from the verb, variable name, type annotation,",
+    "    arguments, surrounding code, and the script's overall purpose",
     "  - WHAT SHAPE to return — strictly from the type annotation",
     "",
     "Output exactly one JSON value. No markdown fences. No commentary. No",
@@ -134,13 +134,8 @@ async function callClaude(prompt: string): Promise<string> {
   // Run claude from $HOME so it inherits only user-level settings,
   // not whatever project the user happens to be in. Keeps the sub-Claude
   // a neutral generic agent regardless of caller's cwd.
-  //
-  // --dangerously-skip-permissions: in print mode there is no human to
-  // grant permissions, so the sub-Claude either gets full tool access
-  // or effectively no tools. We pick full access so script authors can
-  // use comments to direct it to Read/Grep/Bash whatever it needs.
   const proc = Bun.spawn(
-    ["claude", "-p", "--dangerously-skip-permissions", prompt],
+    ["claude", "-p", prompt],
     {
       cwd: homedir(),
       stdout: "pipe",
@@ -162,7 +157,7 @@ async function callClaude(prompt: string): Promise<string> {
   return stdout.trim();
 }
 
-export async function ai<T = unknown>(...args: unknown[]): Promise<T> {
+async function invokeAgent<T>(args: unknown[]): Promise<T> {
   const callsite = getCallsite();
   const source = await readFile(callsite.file, "utf8");
   const argsJson = args.map(serializeArg);
@@ -196,3 +191,20 @@ export async function ai<T = unknown>(...args: unknown[]): Promise<T> {
   }
   throw lastError;
 }
+
+type AgentNamespace = {
+  [verb: string]: <T = unknown>(...args: unknown[]) => Promise<T>;
+};
+
+// `agent` is a Proxy. Any property access (any verb) returns a function
+// that runs the same machinery — the verb itself becomes another signal
+// in the source for the LLM to read.
+export const agent: AgentNamespace = new Proxy({} as AgentNamespace, {
+  get(_target, prop) {
+    if (typeof prop !== "string") return undefined;
+    // Don't pretend to be a thenable / iterator if Promise / for-of machinery
+    // probes for these well-known properties.
+    if (prop === "then" || prop === "catch" || prop === "finally") return undefined;
+    return <T = unknown>(...args: unknown[]) => invokeAgent<T>(args);
+  },
+});

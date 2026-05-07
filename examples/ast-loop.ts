@@ -1,9 +1,9 @@
 #!/usr/bin/env tacit
-import { ai } from "tacit";
+import { agent } from "tacit";
 
 // A tiny imperative language: numbers, variables, binops, let/assign,
 // if/else, while, return. The whole AST is encoded as discriminated
-// unions — that's the only spec the LLM gets.
+// unions — that's the only spec the agent gets.
 
 type Expr =
   | { kind: "num"; value: number }
@@ -104,8 +104,9 @@ const code = `
   return result
 `;
 
-// Parse the source above into a Program AST. Type alone is the spec.
-const program: Program = await ai(code);
+// Parse the source above into a Program AST. The verb (`parse`) plus
+// the discriminated-union types are the spec.
+const program: Program = await agent.parse(code);
 
 const computed = run(program);
 const expected = 120;   // 5! = 5 * 4 * 3 * 2
